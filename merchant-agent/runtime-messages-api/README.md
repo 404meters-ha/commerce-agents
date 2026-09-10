@@ -73,5 +73,6 @@ others (fencing, provenance, guardrails, memory validation) live in `merchant_ag
 `commerce_common`, and [`docs/safety.md`](../../docs/safety.md) lists them.
 
 Credentials: the default client reads `ANTHROPIC_API_KEY` (or a token and base URL) from
-the environment. Tests run without any: `pytest merchant-agent/runtime-messages-api/tests`
+the environment; the demo APIs map `DEEPSEEK_API_KEY` onto it together with DeepSeek's
+base URL. Tests run without any: `pytest merchant-agent/runtime-messages-api/tests`
 scripts the model with `commerce_common.testing.FakeClient`.

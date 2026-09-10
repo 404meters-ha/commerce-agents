@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .fencing import MAX_FENCED_CHARS
 
-DEFAULT_MEMORY_MODEL = "claude-haiku-4-5-20251001"
+DEFAULT_MEMORY_MODEL = "deepseek-v4-flash"
 
 ThinkingEffort = Literal["low", "medium", "high", "xhigh", "max"]
 

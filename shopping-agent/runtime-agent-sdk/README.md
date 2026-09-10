@@ -19,7 +19,8 @@ Choose it when your host consumes a finished turn and the SDK's loop is what you
 
 `scripts/install.sh` installs this package with its dependencies;
 `claude-agent-sdk` bundles the CLI it starts. Credentials: `ANTHROPIC_API_KEY`, or an
-already authenticated Claude Code installation. Other platforms: `docs/deployment.md`.
+already authenticated Claude Code installation; DeepSeek serves the CLI through
+`ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`. Other platforms: `docs/deployment.md`.
 
 ## Run
 

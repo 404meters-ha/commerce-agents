@@ -14,7 +14,9 @@ python merchant-agent/managed-agents/scheduled-digest/run_morning_digest.py --ou
 ```
 
 Credentials: the runtime's default client reads `ANTHROPIC_API_KEY` or
-`ANTHROPIC_AUTH_TOKEN`. Exit status 2 means no credential worked, 1 any other failure.
+`ANTHROPIC_AUTH_TOKEN`; with a DeepSeek key, export it as `ANTHROPIC_API_KEY` together
+with `ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic`. Exit status 2 means no
+credential worked, 1 any other failure.
 
 - Run it from any job runner on the store's morning schedule, with the credential
   supplied from the runner's secret store.

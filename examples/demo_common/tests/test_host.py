@@ -29,7 +29,14 @@ def env_dirs(tmp_path, monkeypatch):
     repo_root, example_root = tmp_path / "repo", tmp_path / "repo" / "examples" / "retail"
     example_root.mkdir(parents=True)
     monkeypatch.setattr(host_module, "REPO_ROOT", repo_root)
-    for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "COMMERCE_DEMO_AUTH"):
+    for name in (
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_BASE_URL",
+        "DEEPSEEK_API_KEY",
+        "DEEPSEEK_BASE_URL",
+        "COMMERCE_DEMO_AUTH",
+    ):
         monkeypatch.delenv(name, raising=False)
     return repo_root, example_root
 
@@ -63,15 +70,70 @@ def test_the_repo_root_env_file_is_read_when_the_example_has_none(env_dirs):
     assert os.environ["ANTHROPIC_API_KEY"] == "root-key"
 
 
-def test_sdk_auth_clears_key_variables_and_reads_no_file(env_dirs, monkeypatch):
+def test_a_deepseek_key_maps_onto_the_client_variables(env_dirs):
     repo_root, example_root = env_dirs
-    (repo_root / ".env").write_text("ANTHROPIC_API_KEY=root-key\n")
-    monkeypatch.setenv("COMMERCE_DEMO_AUTH", "sdk")
+    (repo_root / ".env").write_text("DEEPSEEK_API_KEY=deepseek-key\n")
+
+    load_demo_env(example_root)
+
+    assert os.environ["ANTHROPIC_API_KEY"] == "deepseek-key"
+    assert os.environ["ANTHROPIC_BASE_URL"] == host_module.DEEPSEEK_BASE_URL
+
+
+def test_the_deepseek_mapping_replaces_an_inherited_base_url(env_dirs, monkeypatch):
+    repo_root, example_root = env_dirs
+    (repo_root / ".env").write_text("DEEPSEEK_API_KEY=deepseek-key\n")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://stale-gateway.internal.example")
+
+    load_demo_env(example_root)
+
+    assert os.environ["ANTHROPIC_BASE_URL"] == host_module.DEEPSEEK_BASE_URL
+
+
+def test_deepseek_base_url_overrides_the_default(env_dirs, monkeypatch):
+    repo_root, example_root = env_dirs
+    (repo_root / ".env").write_text("DEEPSEEK_API_KEY=deepseek-key\n")
+    monkeypatch.setenv("DEEPSEEK_BASE_URL", "https://proxy.internal.example/anthropic")
+
+    load_demo_env(example_root)
+
+    assert os.environ["ANTHROPIC_BASE_URL"] == "https://proxy.internal.example/anthropic"
+
+
+def test_an_anthropic_credential_already_set_beats_the_deepseek_key(env_dirs, monkeypatch):
+    repo_root, example_root = env_dirs
+    (repo_root / ".env").write_text("DEEPSEEK_API_KEY=deepseek-key\n")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "from-the-shell")
 
     load_demo_env(example_root)
 
+    assert os.environ["ANTHROPIC_API_KEY"] == "from-the-shell"
+    assert "ANTHROPIC_BASE_URL" not in os.environ
+
+
+def test_a_deepseek_key_clears_an_inherited_auth_token(env_dirs, monkeypatch):
+    repo_root, example_root = env_dirs
+    (repo_root / ".env").write_text("DEEPSEEK_API_KEY=deepseek-key\n")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "a-token-for-other-tooling")
+
+    load_demo_env(example_root)
+
+    assert os.environ["ANTHROPIC_API_KEY"] == "deepseek-key"
+    assert "ANTHROPIC_AUTH_TOKEN" not in os.environ
+    assert os.environ["ANTHROPIC_BASE_URL"] == host_module.DEEPSEEK_BASE_URL
+
+
+def test_sdk_auth_clears_key_variables_and_reads_no_file(env_dirs, monkeypatch):
+    repo_root, example_root = env_dirs
+    (repo_root / ".env").write_text("ANTHROPIC_API_KEY=root-key\nDEEPSEEK_API_KEY=deep-key\n")
+    monkeypatch.setenv("COMMERCE_DEMO_AUTH", "sdk")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "from-the-shell")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "from-the-shell")
+
+    load_demo_env(example_root)
+
     assert "ANTHROPIC_API_KEY" not in os.environ
+    assert "DEEPSEEK_API_KEY" not in os.environ
 
 
 async def test_spawn_background_holds_the_task_until_it_finishes():

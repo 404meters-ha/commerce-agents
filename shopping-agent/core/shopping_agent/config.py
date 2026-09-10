@@ -15,7 +15,7 @@ from commerce_common.config import BaseAgentConfig, ThinkingEffort
 class ShoppingAgentConfig(BaseAgentConfig):
     assistant_name: str = "the shopping assistant"
     brand_voice: str = "warm, concise, and plain about trade-offs"
-    model: str = "claude-sonnet-5"
+    model: str = "deepseek-v4-flash"
     thinking_effort: ThinkingEffort | None = "low"
 
     # -- Capabilities (prompt). `domain_search_notes` is one extra search rule for the

@@ -11,7 +11,9 @@ backend.
 
 Everything comes from the environment: MERCHANT_ID, MERCHANT_OPERATOR, and MERCHANT_TIMEZONE
 set the session; ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN, else the SDK's own chain, supplies
-the credential. Exit status 2 means no credential worked, 1 any other failure.
+the credential (a DeepSeek key goes in ANTHROPIC_API_KEY beside
+ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic). Exit status 2 means no credential
+worked, 1 any other failure.
 """
 
 from __future__ import annotations

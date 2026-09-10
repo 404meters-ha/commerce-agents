@@ -19,7 +19,7 @@ Python 3.11+ and Node 22. Clone, install, add a key, run a vertical:
 git clone https://github.com/anthropics/commerce-agents.git && cd commerce-agents
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt       # the seven packages and their pinned dependencies
-cp .env.example .env                  # add ANTHROPIC_API_KEY
+cp .env.example .env                  # add DEEPSEEK_API_KEY
 (cd examples && npm ci)               # the eight web apps share one workspace
 python scripts/run_demo.py retail     # API :8000 + storefront :3000
 ```

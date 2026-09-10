@@ -22,7 +22,7 @@ uvicorn retail.api.main:app --app-dir examples --reload --port 8000
 (cd examples/retail/merchant-web && npm run dev)       # :3100
 ```
 
-Chat needs `ANTHROPIC_API_KEY` in the repo-root `.env` or the environment; browsing the
+Chat needs `DEEPSEEK_API_KEY` in the repo-root `.env` or the environment; browsing the
 catalog and the portal's widgets do not. `MERCHANT_REQUIRE_HOST_APPROVAL=0` lets a chat
 approval apply a change; by default the preview card's button applies it.
 

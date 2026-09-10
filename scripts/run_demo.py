@@ -35,11 +35,11 @@ import urllib.request
 from pathlib import Path
 
 if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(line_buffering=True)
+    sys.stdout.reconfigure(line_buffering=True, errors="replace")  # a GBK console can't encode ✓
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES_DIR = REPO_ROOT / "examples"
-NEXT = EXAMPLES_DIR / "node_modules" / ".bin" / "next"
+NEXT = EXAMPLES_DIR / "node_modules" / ".bin" / ("next.cmd" if os.name == "nt" else "next")
 
 VERTICALS: dict[str, dict[str, object]] = {
     "retail": {
@@ -81,13 +81,16 @@ def find_free_port(preferred: int, span: int = 50) -> int:
         return sock.getsockname()[1]
 
 
+KEY_VARS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "DEEPSEEK_API_KEY")
+
+
 def env_file_has_key(path: Path) -> bool:
-    """True when the file sets a non-empty ANTHROPIC_API_KEY (a copied placeholder does not)."""
+    """True when the file sets a non-empty key variable (a copied placeholder does not)."""
     if not path.exists():
         return False
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         key, _, value = line.strip().partition("=")
-        if key.strip() == "ANTHROPIC_API_KEY" and value.strip().strip("\"'"):
+        if key.strip() in KEY_VARS and value.strip().strip("\"'"):
             return True
     return False
 
@@ -154,6 +157,22 @@ def ensure_web_deps(install: bool) -> None:
     result = subprocess.run(["npm", "ci", "--no-audit", "--no-fund"], cwd=EXAMPLES_DIR)
     if result.returncode:
         sys.exit(f"npm ci failed (see above); fix the registry, or run it in {EXAMPLES_DIR}.")
+
+
+def stop_tree(process: subprocess.Popen, sig: int) -> None:
+    """Signal the child's process group; where groups don't exist (Windows), kill its tree."""
+    with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+        if hasattr(os, "killpg") and hasattr(os, "getpgid"):
+            os.killpg(os.getpgid(process.pid), sig)
+        elif os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        else:
+            process.send_signal(sig)
 
 
 def spawn(command: list[str], cwd: Path, env: dict[str, str] | None = None) -> subprocess.Popen:
@@ -290,11 +309,16 @@ def main() -> int:
             print(f"{YELLOW}Port {port} is busy — starting the {label} on :{moved}.{RESET}")
             webs[index] = (label, app_dir, moved)
 
-    if run_api and not reuse_api and not args.federated and not os.environ.get("ANTHROPIC_API_KEY"):
+    if (
+        run_api
+        and not reuse_api
+        and not args.federated
+        and not any(os.environ.get(name) for name in KEY_VARS)
+    ):
         env_file = EXAMPLES_DIR / args.vertical / ".env"
         if not env_file_has_key(env_file) and not env_file_has_key(REPO_ROOT / ".env"):
             print(
-                f"{YELLOW}No ANTHROPIC_API_KEY found; chat uses the SDK's credential chain if "
+                f"{YELLOW}No DEEPSEEK_API_KEY found; chat uses the SDK's credential chain if "
                 f"one is configured and otherwise returns an error event. To use a key:{RESET}\n"
                 "  cp .env.example .env   # at the repo root; fill in the key and restart"
             )
@@ -343,15 +367,13 @@ def main() -> int:
     finally:
         for _, process in processes:
             if process.poll() is None:
-                with contextlib.suppress(ProcessLookupError, PermissionError):
-                    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                stop_tree(process, signal.SIGTERM)
         deadline = time.monotonic() + 10
         for _, process in processes:
             try:
                 process.wait(timeout=max(0.1, deadline - time.monotonic()))
             except subprocess.TimeoutExpired:
-                with contextlib.suppress(ProcessLookupError, PermissionError):
-                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                stop_tree(process, signal.SIGKILL)
 
 
 if __name__ == "__main__":
