@@ -17,7 +17,8 @@ any other busy port moves the server to the next free one, and the web apps are 
 wherever the API is. Chat credentials are DeepSeek-only: DEEPSEEK_API_KEY from the
 environment, the vertical's .env, then the repo-root .env (any inherited ANTHROPIC_* is
 dropped); browsing and /showcase need none. --public-host serves callers outside the
-machine: the API binds 0.0.0.0 and admits that host, and the web apps point at it.
+machine: the API binds 0.0.0.0 and admits that host and the web apps' origins, and the
+web apps point at it and admit it in their dev servers.
 """
 
 from __future__ import annotations
@@ -215,6 +216,10 @@ def start_web(
 ) -> subprocess.Popen:
     shown_host = public_host or "localhost"
     env = {**os.environ, "NEXT_PUBLIC_API_URL": f"http://{shown_host}:{api_port}"}
+    if public_host:
+        # The dev servers block assets requested from another host; name the one the
+        # browser comes from (next.config.ts reads this into allowedDevOrigins).
+        env["NEXT_DEV_ALLOWED_ORIGINS"] = public_host
     if prod:
         subprocess.run([str(NEXT), "build"], cwd=app_dir, check=True, env=env)
     return spawn([str(NEXT), "start" if prod else "dev", "--port", str(port)], app_dir, env)

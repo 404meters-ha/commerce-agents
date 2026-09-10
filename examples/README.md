@@ -45,6 +45,7 @@ only the session id, in `X-Session-Id`, and the routes read the principal from i
 | `COMMERCE_DEMO_AUTH` | `sdk` skips the `.env` files and clears the key variables so the client's credential chain is used; `run_demo.py --federated` sets it | `demo_common/host.py` | unset |
 | `DEMO_ALLOWED_HOSTS` | Comma-separated Host values the API answers to besides `localhost` and `127.0.0.1` | `demo_common/host.py` | unset |
 | `DEMO_ALLOWED_ORIGINS` | Comma-separated browser origins the API answers to, exact match, besides the localhost ones | `demo_common/host.py` | unset |
+| `NEXT_DEV_ALLOWED_ORIGINS` | Comma-separated hosts a dev server serves assets to besides `localhost` (Next's `allowedDevOrigins`); `run_demo.py --public-host` sets it | `<app>/next.config.ts` | unset (blocked) |
 | `DEMO_LOG_LEVEL` | `INFO` writes one line per model call; `DEBUG` adds each request and response | `demo_common/host.py` | `INFO` |
 | `MERCHANT_REQUIRE_HOST_APPROVAL` | `0` lets an approval typed in chat apply a change; `1` requires the preview card's button | `demo_common/host.py` | `1` |
 | `MERCHANT_ANALYSIS_CODE_EXECUTION` | `1` mounts the hosted code execution tool in the retail analysis delegate | `retail/api/agent_config.py` | `0` |

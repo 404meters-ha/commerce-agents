@@ -33,10 +33,10 @@ On a server, open the vertical's two ports in the cloud firewall and run the rep
 `./start.sh retail`: it checks `DEEPSEEK_API_KEY`, detects the host's public address (or
 takes `PUBLIC_HOST` from the environment or `.env`), and starts everything under `nohup`
 with `--public-host`, which binds the API to `0.0.0.0`, admits that host in the API's
-Host and CORS checks, and points the web apps at it — the three things a browser on
-another network needs at once. `./stop.sh` stops it; the log is
-`/tmp/commerce-agents.log`. The examples have no authentication, so put your own in front
-before serving strangers.
+Host and CORS checks, points the web apps at it, and admits it in their dev servers —
+the four things a browser on another network needs at once. `./stop.sh` stops it; the
+log is `/tmp/commerce-agents.log`. The examples have no authentication, so put your own
+in front before serving strangers.
 
 ## Quick start: build your own
 
