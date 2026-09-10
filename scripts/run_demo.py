@@ -331,6 +331,12 @@ def main() -> int:
         origins = [f"http://{public_host}:{port}" for _, _, port in webs]
         if origins:
             public_env["DEMO_ALLOWED_ORIGINS"] = ",".join(origins)
+    if os.environ.get("NEXT_PUBLIC_API_URL"):
+        shown_host = public_host or "localhost"
+        print(
+            f"{DIM}NEXT_PUBLIC_API_URL in the environment is ignored; the web apps call "
+            f"http://{shown_host}:{api_port} — --public-host decides.{RESET}"
+        )
 
     if (
         run_api

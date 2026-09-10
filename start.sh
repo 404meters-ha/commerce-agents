@@ -27,10 +27,28 @@ fi
 VERTICAL="${1:-retail}"
 if [ "$#" -gt 0 ]; then shift; fi
 
-# 公网 IP: PUBLIC_HOST 覆盖 > 阿里云元数据的 eipv4 > 第一块网卡地址
-PUBLIC_HOST="${PUBLIC_HOST:-$(curl -fsS --max-time 2 http://100.100.100.200/latest/meta-data/eipv4 2>/dev/null)}"
-if [ -z "${PUBLIC_HOST:-}" ]; then
-    PUBLIC_HOST="$(hostname -I 2>/dev/null | awk '{print $1}')"
+# 对外地址(浏览器从哪里访问页面就填哪个): PUBLIC_HOST(.env 或环境) > 阿里云元数据
+# 的 eipv4 / public-ipv4 > 都没有则按本机模式启动。私网地址不算数——它出现在页面里,
+# 外部浏览器照样连不上 API。
+is_public_ip() {
+    case "$1" in
+        10.*|127.*|169.254.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*) return 1 ;;
+    esac
+    [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+}
+
+PUBLIC_HOST="${PUBLIC_HOST:-}"
+if [ -n "$PUBLIC_HOST" ] && ! is_public_ip "$PUBLIC_HOST"; then
+    echo "[WARN] PUBLIC_HOST=$PUBLIC_HOST 不是公网 IPv4,仍然按它启动(显式指定的优先)"
+fi
+if [ -z "$PUBLIC_HOST" ]; then
+    for FIELD in eipv4 public-ipv4; do
+        CANDIDATE="$(curl -fsS --max-time 2 "http://100.100.100.200/latest/meta-data/${FIELD}" 2>/dev/null | tr -d '[:space:]')"
+        if is_public_ip "$CANDIDATE"; then
+            PUBLIC_HOST="$CANDIDATE"
+            break
+        fi
+    done
 fi
 
 if pgrep -f "scripts/run_demo\.py ${VERTICAL}" > /dev/null 2>&1; then
@@ -41,10 +59,12 @@ fi
 # run_demo.py 自己补装缺失依赖、起 API 和 web、搬开被占用的端口;
 # --public-host 让 API 绑 0.0.0.0、放行该主机的 Host 头和 web 源,并把 web 应用指向它
 PUBLIC_ARGS=""
-if [ -n "${PUBLIC_HOST:-}" ]; then
+if [ -n "$PUBLIC_HOST" ]; then
     PUBLIC_ARGS="--public-host ${PUBLIC_HOST}"
+    echo "[INFO] 对外地址: ${PUBLIC_HOST}"
 else
-    echo "[WARN] 未能探测到本机地址,按本机模式启动(外部无法访问);可用 PUBLIC_HOST=<IP> ./start.sh 指定"
+    echo "[WARN] 未探测到公网地址,按本机模式启动,外部页面的 chat 连不上 API。"
+    echo "       修复: 在 .env 里加一行 PUBLIC_HOST=<服务器公网IP>,再执行 ./stop.sh && ./start.sh"
 fi
 nohup .venv/bin/python scripts/run_demo.py "${VERTICAL}" ${PUBLIC_ARGS} "$@" \
     > /tmp/commerce-agents.log 2>&1 &
