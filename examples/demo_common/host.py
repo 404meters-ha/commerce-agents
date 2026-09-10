@@ -60,25 +60,25 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com/anthropic"
 
 
 def load_demo_env(example_root: Path) -> None:
-    """Load credentials before any agent is constructed. A variable already in the
-    environment wins; the example's own ``.env`` fills in the rest, then the repo-root
-    one. ``DEEPSEEK_API_KEY`` feeds the variables the model client reads —
-    ``ANTHROPIC_API_KEY`` plus DeepSeek's Anthropic-compatible base URL — unless an
-    ``ANTHROPIC_API_KEY`` is already set, and clears a stale ``ANTHROPIC_AUTH_TOKEN`` so
-    a shell's token for other tooling cannot ride along;
-    ``COMMERCE_DEMO_AUTH=sdk`` clears key variables instead so the Anthropic SDK's own
-    credential chain is used."""
+    """Load credentials before any agent is constructed. A ``DEEPSEEK_API_KEY`` already
+    in the environment wins; the example's own ``.env`` fills in next, then the repo-root
+    one. DeepSeek is the only credential chat honors: any inherited ``ANTHROPIC_API_KEY``,
+    ``ANTHROPIC_AUTH_TOKEN``, or ``ANTHROPIC_BASE_URL`` — a shell's exports for other
+    tooling — is dropped, and the DeepSeek key feeds the variables the model client
+    reads — ``ANTHROPIC_API_KEY`` plus DeepSeek's Anthropic-compatible base URL, rerouted
+    by ``DEEPSEEK_BASE_URL``. ``COMMERCE_DEMO_AUTH=sdk`` clears key variables instead so
+    the Anthropic SDK's own credential chain is used."""
     if os.environ.get("COMMERCE_DEMO_AUTH", "").lower() == "sdk":
         for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "DEEPSEEK_API_KEY"):
             os.environ.pop(name, None)
         return
     load_dotenv(example_root / ".env", override=False)
     load_dotenv(REPO_ROOT / ".env", override=False)
-    deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
-    if deepseek_key and not os.environ.get("ANTHROPIC_API_KEY"):
-        os.environ["ANTHROPIC_API_KEY"] = deepseek_key
+    for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"):
+        os.environ.pop(name, None)
+    if os.environ.get("DEEPSEEK_API_KEY"):
+        os.environ["ANTHROPIC_API_KEY"] = os.environ["DEEPSEEK_API_KEY"]
         os.environ["ANTHROPIC_BASE_URL"] = os.environ.get("DEEPSEEK_BASE_URL") or DEEPSEEK_BASE_URL
-        os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 
 
 def host_approval_default() -> bool:
@@ -116,8 +116,10 @@ def _lifespan(on_startup: Sequence[Callable[[], Awaitable[None]]]):
 def build_app(title: str, on_startup: Sequence[Callable[[], Awaitable[None]]] = ()) -> FastAPI:
     """A FastAPI app that answers only to loopback host names (plus ``DEMO_ALLOWED_HOSTS``,
     for a deployment that puts its own authentication in front) and to any localhost
-    origin. Rejecting other Host headers stops DNS-rebinding, which CORS does not. Logs go
-    to stderr at ``DEMO_LOG_LEVEL``: ``INFO`` is a line per model call, ``DEBUG`` adds the bodies."""
+    origin (plus the exact origins in ``DEMO_ALLOWED_ORIGINS``, for a web app served from
+    another host). Rejecting other Host headers stops DNS-rebinding, which CORS does not.
+    Logs go to stderr at ``DEMO_LOG_LEVEL``: ``INFO`` is a line per model call, ``DEBUG``
+    adds the bodies."""
     logging.basicConfig(
         level=os.environ.get("DEMO_LOG_LEVEL", "INFO").upper(),
         format="%(levelname)s %(name)s: %(message)s",
@@ -128,6 +130,9 @@ def build_app(title: str, on_startup: Sequence[Callable[[], Awaitable[None]]] = 
         host.strip().rsplit(":", 1)[0] if ":" in host.strip() else host.strip()
         for host in os.environ.get("DEMO_ALLOWED_HOSTS", "").split(",")
     ]
+    extra_origins = [
+        origin.strip() for origin in os.environ.get("DEMO_ALLOWED_ORIGINS", "").split(",")
+    ]
     app = FastAPI(title=title, version="0.1.0", lifespan=_lifespan(on_startup))
     app.add_middleware(
         TrustedHostMiddleware,
@@ -136,6 +141,7 @@ def build_app(title: str, on_startup: Sequence[Callable[[], Awaitable[None]]] = 
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+        allow_origins=[origin for origin in extra_origins if origin],
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -190,9 +196,8 @@ def stream_turn(
             yield to_sse(
                 AgentEvent.error(
                     f"Model API authentication failed (401). Check DEEPSEEK_API_KEY in "
-                    f"{env_hint} or the repo-root .env, unset any stale ANTHROPIC_API_KEY "
-                    "exported by your shell, or restart with COMMERCE_DEMO_AUTH=sdk to use "
-                    "the SDK's own credential chain."
+                    f"{env_hint} or the repo-root .env and restart, or set "
+                    "COMMERCE_DEMO_AUTH=sdk to use the SDK's own credential chain."
                 )
             )
         except Exception as error:  # the client gets a safe event, the log gets the rest

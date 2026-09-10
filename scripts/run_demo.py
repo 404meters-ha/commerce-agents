@@ -14,8 +14,10 @@ Boots uvicorn and the Next.js dev server(s), waits until they answer, prints the
 stops everything on Ctrl-C. Python packages and the examples/ npm workspace are installed on
 first run. Ports are preferences: this vertical's API already running on its port is reused;
 any other busy port moves the server to the next free one, and the web apps are pointed at
-wherever the API is. Chat credentials come from the environment, the vertical's .env, the
-repo-root .env, then the SDK's credential chain; browsing and /showcase need none.
+wherever the API is. Chat credentials are DeepSeek-only: DEEPSEEK_API_KEY from the
+environment, the vertical's .env, then the repo-root .env (any inherited ANTHROPIC_* is
+dropped); browsing and /showcase need none. --public-host serves callers outside the
+machine: the API binds 0.0.0.0 and admits that host, and the web apps point at it.
 """
 
 from __future__ import annotations
@@ -81,7 +83,7 @@ def find_free_port(preferred: int, span: int = 50) -> int:
         return sock.getsockname()[1]
 
 
-KEY_VARS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "DEEPSEEK_API_KEY")
+KEY_VARS = ("DEEPSEEK_API_KEY",)
 
 
 def env_file_has_key(path: Path) -> bool:
@@ -186,8 +188,10 @@ def spawn(command: list[str], cwd: Path, env: dict[str, str] | None = None) -> s
     )
 
 
-def start_api(vertical: str, port: int, federated: bool) -> subprocess.Popen:
-    env = os.environ.copy()
+def start_api(
+    vertical: str, port: int, federated: bool, public_env: dict[str, str]
+) -> subprocess.Popen:
+    env = {**os.environ, **public_env}
     if federated:
         env["COMMERCE_DEMO_AUTH"] = "sdk"
     module = f"{vertical}.api.main:app"
@@ -201,11 +205,16 @@ def start_api(vertical: str, port: int, federated: bool) -> subprocess.Popen:
         "--port",
         str(port),
     ]
+    if public_env:
+        command += ["--host", "0.0.0.0"]
     return spawn(command, REPO_ROOT, env)
 
 
-def start_web(app_dir: Path, port: int, api_port: int, prod: bool) -> subprocess.Popen:
-    env = {**os.environ, "NEXT_PUBLIC_API_URL": f"http://localhost:{api_port}"}
+def start_web(
+    app_dir: Path, port: int, api_port: int, prod: bool, public_host: str | None
+) -> subprocess.Popen:
+    shown_host = public_host or "localhost"
+    env = {**os.environ, "NEXT_PUBLIC_API_URL": f"http://{shown_host}:{api_port}"}
     if prod:
         subprocess.run([str(NEXT), "build"], cwd=app_dir, check=True, env=env)
     return spawn([str(NEXT), "start" if prod else "dev", "--port", str(port)], app_dir, env)
@@ -259,6 +268,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-install", action="store_true", help="fail instead of installing")
     parser.add_argument("--prod", action="store_true", help="next build + start instead of dev")
     parser.add_argument(
+        "--public-host",
+        metavar="HOST",
+        help="serve callers outside this machine: bind the API to 0.0.0.0, admit HOST and "
+        "the web apps' origins, and point the web apps at it",
+    )
+    parser.add_argument(
         "--federated",
         action="store_true",
         help="authenticate through the SDK's credential chain, ignoring key files and ANTHROPIC_API_KEY",
@@ -309,6 +324,14 @@ def main() -> int:
             print(f"{YELLOW}Port {port} is busy — starting the {label} on :{moved}.{RESET}")
             webs[index] = (label, app_dir, moved)
 
+    public_host = args.public_host
+    public_env: dict[str, str] = {}
+    if public_host:
+        public_env["DEMO_ALLOWED_HOSTS"] = public_host
+        origins = [f"http://{public_host}:{port}" for _, _, port in webs]
+        if origins:
+            public_env["DEMO_ALLOWED_ORIGINS"] = ",".join(origins)
+
     if (
         run_api
         and not reuse_api
@@ -327,7 +350,7 @@ def main() -> int:
     try:
         if run_api and not reuse_api:
             ensure_python_deps(install=not args.no_install)
-            api = start_api(args.vertical, api_port, args.federated)
+            api = start_api(args.vertical, api_port, args.federated, public_env)
             processes.append(("api", api))
             pipe_output(api, f"{args.vertical}-api")
             if not wait_for(f"http://localhost:{api_port}/api/health", 90, api):
@@ -335,18 +358,19 @@ def main() -> int:
         if webs:
             ensure_web_deps(install=not args.no_install)
         for label, app_dir, port in webs:
-            process = start_web(app_dir, port, api_port, args.prod)
+            process = start_web(app_dir, port, api_port, args.prod, public_host)
             processes.append((label, process))
             pipe_output(process, f"{args.vertical}-{app_dir.name}")
             if not wait_for(f"http://localhost:{port}", 180, process):
                 raise RuntimeError(f"The {label} didn't come up on :{port} — see output above.")
 
         print(f"\n{GREEN}✓ {args.vertical} demo is up{RESET}")
+        shown_host = public_host or "localhost"
         for label, app_dir, port in webs:
-            print(f"  {label:<16} http://localhost:{port}")
+            print(f"  {label:<16} http://{shown_host}:{port}")
             if app_dir.name == "storefront-web":
-                print(f"  {'showcase':<16} http://localhost:{port}/showcase")
-        print(f"  {'api':<16} http://localhost:{api_port}/api/health")
+                print(f"  {'showcase':<16} http://{shown_host}:{port}/showcase")
+        print(f"  {'api':<16} http://{shown_host}:{api_port}/api/health")
         if not processes:
             print(f"{DIM}Nothing new was started; everything was already running.{RESET}")
             return 0

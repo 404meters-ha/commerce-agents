@@ -26,7 +26,15 @@ python scripts/run_demo.py retail     # API :8000 + storefront :3000
 
 `--merchant` starts the portal instead of the storefront and `--all` starts both. The
 verticals are `retail` (:3000, portal :3100), `travel` (:3001, :3101), `telecom` (:3002,
-:3102), and `entertainment` (:3003, :3103); each README lists prompts to try on both surfaces.
+:3102), and `entertainment` (:3003, :3103); each README lists prompts to try on both
+surfaces.
+
+On a server, open the vertical's two ports in the cloud firewall and run the repo-root
+`./start.sh retail`: it checks `DEEPSEEK_API_KEY`, detects the host's public address (or
+takes `PUBLIC_HOST`), and starts everything under `nohup` with `--public-host`, which
+binds the API to `0.0.0.0`, admits that host in the API's Host and CORS checks, and
+points the web apps at it. `./stop.sh` stops it; the log is `/tmp/commerce-agents.log`.
+The examples have no authentication, so put your own in front before serving strangers.
 
 ## Quick start: build your own
 
