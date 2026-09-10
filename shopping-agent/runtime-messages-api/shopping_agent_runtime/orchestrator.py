@@ -154,6 +154,7 @@ class ShoppingAgent:
         forced_tool = first_forced_tool(
             GROUNDING_RULES, self.config, latest_user_text(messages), state
         )
+        thinking_fields = self.config.thinking_request_fields(forcing_tool=bool(forced_tool))
         usage = usage_totals()
         stop_reason: str | None = None
         last_prompt = 0
@@ -188,7 +189,7 @@ class ShoppingAgent:
                     "tools": self._tools,
                     "tool_choice": tool_choice,
                     "messages": request_messages,
-                    **self.config.thinking_request_fields(),
+                    **thinking_fields,
                 }
                 dispatcher = EagerDispatcher(
                     executor.execute, self.config.eager_tool_dispatch and not force_text

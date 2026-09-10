@@ -136,8 +136,10 @@ DeepSeek speaks the same request vocabulary — tools, `tool_choice`, streaming,
 blocks, multi-turn tool results, `thinking` with `output_config.effort` — with four
 differences. `cache_control` markers are ignored: DeepSeek caches repeated prefixes on
 disk on its own and bills a cache read far below a miss, so `rolling_conversation_cache`
-pays off without them. Thinking is always on there; `thinking_effort` pins the effort on
-a low/high/max scale, and temperature is ignored while thinking runs. The hosted
+pays off without them. A forced `tool_choice` is rejected while thinking is on, so a turn a
+grounding gate pins to one tool runs thinking-off (`thinking_request_fields` in
+`commerce_common`); otherwise `thinking_effort` pins the effort on a low/high/max scale, and
+temperature is ignored while thinking runs. The hosted
 code-execution tool is not served, so `analysis_use_code_execution` stays off while
 `execute_analysis_query` carries the analysis delegate; the web-search server tool is
 served. Rate limits meter account-level concurrency, not requests per minute.

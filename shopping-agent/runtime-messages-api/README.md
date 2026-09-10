@@ -45,7 +45,9 @@ stream error propagates out of `stream_turn`; the host catches it and emits an `
 ## What the runtime adds to the executor
 
 - When a rule in `shopping_agent.grounding` fires, the first round is pinned to that read
-  tool with `tool_choice`; after `max_tool_iterations` rounds the last round runs without tools.
+  tool with `tool_choice`; after `max_tool_iterations` rounds the last round runs without
+  tools. A pinned round and thinking cannot ride the same request, so a gated turn runs with
+  thinking off to its last round and the next turn thinks as configured.
 - Tool calls dispatch eagerly: a call executes the moment its content block closes, while
   the model writes the rest of the round (`eager_tool_dispatch`). Each model call carries a
   cache breakpoint on the newest persisted message (`rolling_conversation_cache`), placed on

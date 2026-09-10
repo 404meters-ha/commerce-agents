@@ -154,18 +154,29 @@ def _marked_blocks(call: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-async def test_a_gated_turn_changes_only_tool_choice_between_iterations(loop, run, session):
+async def test_a_gated_turn_pins_its_tool_and_runs_thinking_off_throughout(loop, turn, session):
     for text, tool, tool_input, call_count in loop.gated_turns:
         responses = [
             tool_use_message(tool, tool_input),
             *[text_message("Answered.")] * (call_count - 1),
         ]
-        first, *rest = await run(text, responses, session=session)
+        messages: list[dict[str, Any]] = [{"role": "user", "content": text}]
+        calls, _ = await turn(messages, responses, session=session)
+        first, *rest = calls
         assert len(rest) == call_count - 1
         assert first["tool_choice"] == {"type": "tool", "name": tool}
         assert rest[0]["tool_choice"] == {"type": "auto"}
         assert all(_cached_bytes(call) == _cached_bytes(first) for call in rest), text
         assert _context_block(first).startswith(loop.dynamic_heading)
+        # A forced tool choice cannot ride with thinking, and a round that ran without
+        # it cannot turn it on again: the gate holds thinking off to the turn's last round.
+        assert all(call["thinking"] == {"type": "disabled"} for call in calls), text
+        assert all("output_config" not in call for call in calls), text
+        # The turn after the gated one thinks as configured.
+        messages.append({"role": "user", "content": loop.ungated_turn})
+        (follow,), _ = await turn(messages, [text_message("Here you go.")], session=session)
+        assert follow["thinking"] == {"type": "adaptive"}, text
+        assert follow["output_config"] == {"effort": "low"}, text
 
 
 async def test_an_ungated_turn_runs_auto_from_the_first_iteration(loop, run, session):

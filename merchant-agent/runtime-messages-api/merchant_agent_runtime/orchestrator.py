@@ -177,6 +177,7 @@ class MerchantAgent:
         user_text = latest_user_text(messages, HOST_TEXTS)
         forced_tool = first_forced_tool(GROUNDING_RULES, self.config, user_text, state)
         remind = change_requested(self.config, user_text)
+        thinking_fields = self.config.thinking_request_fields(forcing_tool=bool(forced_tool))
         stop_reason: str | None = None
         last_prompt = 0
 
@@ -218,7 +219,7 @@ class MerchantAgent:
                     "tools": self._tools,
                     "tool_choice": tool_choice,
                     "messages": request_messages,
-                    **self.config.thinking_request_fields(),
+                    **thinking_fields,
                 }
                 dispatcher = EagerDispatcher(
                     executor.execute, self.config.eager_tool_dispatch and not force_text

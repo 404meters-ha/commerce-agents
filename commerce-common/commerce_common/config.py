@@ -31,8 +31,9 @@ class BaseAgentConfig(BaseModel):
 
     # -- Models: the turn loop runs on `model`, which each role's config names, and
     # post-turn extraction on `memory_model`. The turn loop sends adaptive thinking at
-    # `thinking_effort`, or thinking disabled when it is None; either way `max_tokens`
-    # bounds the thinking and the reply together.
+    # `thinking_effort`, or thinking disabled when it is None or the turn is gated
+    # (`thinking_request_fields`); either way `max_tokens` bounds the thinking and the
+    # reply together.
     model: str
     memory_model: str = DEFAULT_MEMORY_MODEL
     thinking_effort: ThinkingEffort | None = None
@@ -85,10 +86,14 @@ class BaseAgentConfig(BaseModel):
         off; the executor refuses them too. A role config lists its own."""
         return frozenset()
 
-    def thinking_request_fields(self) -> dict[str, Any]:
+    def thinking_request_fields(self, *, forcing_tool: bool = False) -> dict[str, Any]:
         """The request fields that carry `thinking_effort`, for every model call the
-        agent makes on `model`."""
-        if self.thinking_effort is None:
+        agent makes on `model`. A turn whose first round is pinned to a tool — the
+        grounding gates — runs thinking-off from that round to its last: DeepSeek rejects
+        a forced `tool_choice` while thinking is on, Bedrock pairs the two the same way,
+        and a turn that spent one round without thinking cannot turn it on for the rounds
+        that follow. The next turn thinks as configured."""
+        if forcing_tool or self.thinking_effort is None:
             return {"thinking": {"type": "disabled"}}
         return {
             "thinking": {"type": "adaptive"},
